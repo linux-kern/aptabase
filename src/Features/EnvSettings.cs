@@ -75,6 +75,21 @@ public class EnvSettings
     // Variable Name: OAUTH_GOOGLE_CLIENT_SECRET
     public string OAuthGoogleClientSecret { get; private set; } = "";
 
+    // Admin account for password login (development/self-hosted)
+    // Variable Name: ADMIN_EMAIL
+    public string AdminEmail { get; private set; } = "";
+
+    // Admin password for password login
+    // Variable Name: ADMIN_PASSWORD
+    public string AdminPassword { get; private set; } = "";
+
+    // Admin display name
+    // Variable Name: ADMIN_NAME
+    public string AdminName { get; private set; } = "Administrator";
+
+    // Whether admin password login is enabled
+    public bool IsAdminLoginEnabled => !string.IsNullOrEmpty(AdminEmail) && !string.IsNullOrEmpty(AdminPassword);
+
     //  The following properties are derived from the other settings
     public bool IsManagedCloud => Region == "EU" || Region == "US";
     public bool IsBillingEnabled => IsManagedCloud || IsDevelopment;
@@ -117,6 +132,10 @@ public class EnvSettings
             OAuthGoogleClientId = Get("OAUTH_GOOGLE_CLIENT_ID"),
             OAuthGoogleClientSecret = Get("OAUTH_GOOGLE_CLIENT_SECRET"),
 
+            AdminEmail = Get("ADMIN_EMAIL"),
+            AdminPassword = Get("ADMIN_PASSWORD"),
+            AdminName = GetOrDefault("ADMIN_NAME", "Administrator"),
+
             // On the container, the etc directory is mounted at ./etc
             // But during development, it's at ../etc
             EtcDirectoryPath = Directory.Exists("./etc") ? "./etc" : "../etc"
@@ -136,6 +155,12 @@ public class EnvSettings
     private static string Get(string name)
     {
         return Environment.GetEnvironmentVariable(name) ?? "";
+    }
+
+    private static string GetOrDefault(string name, string defaultValue)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+        return string.IsNullOrEmpty(value) ? defaultValue : value;
     }
 
     private static int GetInt(string name)

@@ -22,6 +22,16 @@ public class RegisterBodyRequest
     public string Email { get; set; } = "";
 }
 
+public class PasswordLoginRequest
+{
+    [EmailAddress]
+    public string Email { get; set; } = "";
+
+    [Required]
+    [MinLength(6)]
+    public string Password { get; set; } = "";
+}
+
 [ApiController]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class AuthController : Controller
@@ -136,5 +146,41 @@ public class AuthController : Controller
         }
 
         return Redirect($"{_env.SelfBaseUrl}/");
+    }
+
+    [HttpGet("/api/_auth/password-login-enabled")]
+    public IActionResult IsPasswordLoginEnabled()
+    {
+        return Ok(new { enabled = _env.IsAdminLoginEnabled });
+    }
+
+    [HttpPost("/api/_auth/password-login")]
+    [EnableRateLimiting("SignUp")]
+    public async Task<IActionResult> PasswordLogin(
+        [FromBody] PasswordLoginRequest body,
+        CancellationToken cancellationToken)
+    {
+        if (!_env.IsAdminLoginEnabled)
+            return NotFound(new { message = "Password login is not enabled" });
+
+        // Validate credentials
+        if (!string.Equals(body.Email.Trim(), _env.AdminEmail, StringComparison.OrdinalIgnoreCase) ||
+            body.Password != _env.AdminPassword)
+        {
+            return Unauthorized(new { message = "Invalid credentials" });
+        }
+
+        // Find or create admin user
+        var user = await _authService.FindUserByEmailAsync(body.Email.Trim(), cancellationToken);
+        if (user == null)
+        {
+            user = await _authService.CreateAccountAsync(
+                _env.AdminName,
+                body.Email.Trim(),
+                cancellationToken);
+        }
+
+        await _authService.SignInAsync(user);
+        return Ok(new { });
     }
 }
