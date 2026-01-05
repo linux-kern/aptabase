@@ -1,6 +1,6 @@
-import { requestSignInLink } from "@features/auth";
+import { requestSignInLink, isPasswordLoginEnabled, passwordLogin } from "@features/auth";
 import { Page } from "@components/Page";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { DataResidency } from "./DataResidency";
 import { LegalNotice } from "./LegalNotice";
@@ -13,6 +13,7 @@ import { Button } from "@components/Button";
 import { TextInput } from "@components/TextInput";
 
 type FormStatus = "idle" | "loading" | "success" | "notfound";
+type PasswordFormStatus = "idle" | "loading" | "error";
 
 type StatusMessageProps = {
   status: FormStatus;
@@ -64,14 +65,37 @@ const RedirectErrorMessage = () => {
 Component.displayName = "LoginPage";
 export function Component() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState<FormStatus>("idle");
+  const [passwordStatus, setPasswordStatus] = useState<PasswordFormStatus>("idle");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(false);
+  const [loginMode, setLoginMode] = useState<"magic" | "password">("magic");
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    isPasswordLoginEnabled().then(setPasswordLoginEnabled);
+  }, []);
+
+  const handleMagicLinkSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatus("loading");
 
     const found = await requestSignInLink(email);
     setStatus(found ? "success" : "notfound");
+  };
+
+  const handlePasswordSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordStatus("loading");
+    setPasswordError("");
+
+    const result = await passwordLogin(email, password);
+    if (result.success) {
+      window.location.href = "/";
+    } else {
+      setPasswordStatus("error");
+      setPasswordError(result.message || "Login failed");
+    }
   };
 
   return (
@@ -105,22 +129,80 @@ export function Component() {
             </>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
-            <TextInput
-              label="Enter your email address"
-              name="email"
-              type="email"
-              placeholder="peter.parker@corp.com"
-              autoComplete="email"
-              value={email}
-              required={true}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Button loading={status === "loading"}>Send magic link</Button>
-            <p className="text-center text-sm h-10 text-muted-foreground">
-              <StatusMessage status={status} />
-            </p>
-          </form>
+          {passwordLoginEnabled && (
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex rounded-md shadow-sm" role="group">
+                <button
+                  type="button"
+                  onClick={() => setLoginMode("magic")}
+                  className={`px-4 py-2 text-sm font-medium rounded-l-lg border ${
+                    loginMode === "magic"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  Magic Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoginMode("password")}
+                  className={`px-4 py-2 text-sm font-medium rounded-r-lg border-t border-b border-r ${
+                    loginMode === "password"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  Password
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loginMode === "magic" ? (
+            <form onSubmit={handleMagicLinkSubmit} className="flex flex-col space-y-4">
+              <TextInput
+                label="Enter your email address"
+                name="email"
+                type="email"
+                placeholder="peter.parker@corp.com"
+                autoComplete="email"
+                value={email}
+                required={true}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <Button loading={status === "loading"}>Send magic link</Button>
+              <p className="text-center text-sm h-10 text-muted-foreground">
+                <StatusMessage status={status} />
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={handlePasswordSubmit} className="flex flex-col space-y-4">
+              <TextInput
+                label="Email"
+                name="email"
+                type="email"
+                placeholder="admin@example.com"
+                autoComplete="email"
+                value={email}
+                required={true}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <TextInput
+                label="Password"
+                name="password"
+                type="password"
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                value={password}
+                required={true}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <Button loading={passwordStatus === "loading"}>Sign in</Button>
+              {passwordStatus === "error" && (
+                <p className="text-center text-sm text-destructive">{passwordError}</p>
+              )}
+            </form>
+          )}
         </div>
         <LegalNotice operation="signin" />
         <RegionSwitch />
